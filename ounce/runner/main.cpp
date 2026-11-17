@@ -189,7 +189,6 @@ static bool Run(const char* romPath) {
     padConfigureInput(1, HidNpadStyleSet_NpadStandard);
     PadState pad;
     padInitializeDefault(&pad);
-    hidInitializeTouchScreen();
 
     NDS::SetConsoleType(0);
     if (!NDS::Init()) {
@@ -201,17 +200,29 @@ static bool Run(const char* romPath) {
     GPU::RenderSettings settings{};
     settings.Soft_Threaded = false;
     GPU::SetRenderSettings(0, settings);
+    Log("PASS: SetRenderSettings");
 
     char sramPath[2048];
     std::snprintf(sramPath, sizeof(sramPath), "%s.sav", romPath);
 
-    Log("LOADING: %s (direct boot)", romPath);
-    if (!NDS::LoadROM(romPath, sramPath, true)) {
-        Log("FAIL: LoadROM failed for %s", romPath);
+    FILE* testFp = Platform::OpenFile(romPath, "rb", true);
+    if (!testFp) {
+        Log("FAIL: Cannot open ROM file %s (check that it exists)", romPath);
         NDS::DeInit();
         return false;
     }
-    Log("PASS: LoadROM succeeded; starting emulation loop");
+    std::fseek(testFp, 0, SEEK_END);
+    long romLen = std::ftell(testFp);
+    std::fclose(testFp);
+    Log("ROM check passed: length=%ld bytes", romLen);
+
+    Log("CALL: NDS::LoadROM(%s)", romPath);
+    if (!NDS::LoadROM(romPath, sramPath, true)) {
+        Log("FAIL: LoadROM returned false for %s", romPath);
+        NDS::DeInit();
+        return false;
+    }
+    Log("PASS: LoadROM succeeded; entering frame loop");
 
     std::array<u32, 256 * 192> rgba[2];
     unsigned frame = 0;
@@ -227,36 +238,6 @@ static bool Run(const char* romPath) {
         }
 
         NDS::SetKeyMask(MapPadToDs(held));
-
-        HidTouchScreenState touchState = {0};
-        if (hidGetTouchScreenStates(&touchState, 1) > 0 && touchState.count > 0) {
-            EGLint width = 0, height = 0;
-            eglQuerySurface(window.display, window.surface, EGL_WIDTH, &width);
-            eglQuerySurface(window.display, window.surface, EGL_HEIGHT, &height);
-
-            int scale = std::min(width / 256, (height - 16) / 384);
-            if (scale >= 1) {
-                int w = 256 * scale, h = 192 * scale;
-                int left = (width - w) / 2;
-                int bottomGl = (height - (2 * h + 16)) / 2;
-                int topScreenY = height - (bottomGl + h);
-
-                s32 tx = touchState.touches[0].x;
-                s32 ty = touchState.touches[0].y;
-
-                if (tx >= left && tx < left + w && ty >= topScreenY && ty < topScreenY + h) {
-                    u16 dsX = (tx - left) / scale;
-                    u16 dsY = (ty - topScreenY) / scale;
-                    NDS::TouchScreen(dsX, dsY);
-                } else {
-                    NDS::ReleaseScreen();
-                }
-            } else {
-                NDS::ReleaseScreen();
-            }
-        } else {
-            NDS::ReleaseScreen();
-        }
 
         NDS::RunFrame();
 
