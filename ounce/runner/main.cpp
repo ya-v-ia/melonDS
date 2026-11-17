@@ -3,6 +3,8 @@
 #include <array>
 #include <cstdarg>
 #include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <switch.h>
 #include <EGL/egl.h>
 #include <GLES3/gl3.h>
@@ -11,6 +13,13 @@
 #include "Config.h"
 #include "NDS.h"
 #include "GPU.h"
+
+namespace SPI_Firmware {
+extern u8* Firmware;
+extern u32 FirmwareLength;
+extern u32 FirmwareMask;
+extern u32 UserSettings;
+}
 
 static FILE* logFile;
 static void Log(const char* format, ...) {
@@ -180,6 +189,19 @@ static u32 MapPadToDs(u64 buttons) {
     return ds;
 }
 
+static void EnsureDummyFirmware() {
+    if (!SPI_Firmware::Firmware) {
+        Log("NOTICE: Injecting dummy DS firmware buffer for DirectBoot");
+        SPI_Firmware::FirmwareLength = 0x40000;
+        SPI_Firmware::FirmwareMask = SPI_Firmware::FirmwareLength - 1;
+        SPI_Firmware::Firmware = new u8[SPI_Firmware::FirmwareLength]();
+        SPI_Firmware::UserSettings = 0x3FE00;
+        *(u16*)&SPI_Firmware::Firmware[0x20] = 0x0020;
+        *(u16*)&SPI_Firmware::Firmware[0x26] = 0x0000;
+        *(u16*)&SPI_Firmware::Firmware[0x04] = 0x1204;
+    }
+}
+
 static bool Run(const char* romPath) {
     Window window;
     if (!window.Open()) return false;
@@ -202,12 +224,14 @@ static bool Run(const char* romPath) {
     GPU::SetRenderSettings(0, settings);
     Log("PASS: SetRenderSettings");
 
+    EnsureDummyFirmware();
+
     char sramPath[2048];
     std::snprintf(sramPath, sizeof(sramPath), "%s.sav", romPath);
 
     FILE* testFp = Platform::OpenFile(romPath, "rb", true);
     if (!testFp) {
-        Log("FAIL: Cannot open ROM file %s (check that it exists)", romPath);
+        Log("FAIL: Cannot open ROM file %s (file missing on SD)", romPath);
         NDS::DeInit();
         return false;
     }
