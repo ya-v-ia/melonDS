@@ -146,8 +146,11 @@ std::unique_ptr<GLCompositor> CurGLCompositor = {};
 
 bool Init()
 {
-    //GPU2D_Renderer = std::make_unique<GPU2D::SoftRenderer>();
+    #ifdef DEKOGPU_ENABLED
     GPU2D_Renderer = std::make_unique<GPU2D::DekoRenderer>();
+#else
+    GPU2D_Renderer = std::make_unique<GPU2D::SoftRenderer>();
+#endif
     if (!GPU3D::Init()) return false;
 
     FrontBuffer = 0;
