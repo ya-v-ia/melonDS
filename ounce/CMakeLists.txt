@@ -29,13 +29,16 @@ add_compile_definitions(ARCHITECTURE_ARM64=1 MELONDS_VERSION="0.9.2")
 get_filename_component(MELONDS_SOURCE_DIR "${CMAKE_CURRENT_LIST_DIR}/.." ABSOLUTE)
 add_subdirectory("${MELONDS_SOURCE_DIR}/src" "${CMAKE_CURRENT_BINARY_DIR}/core")
 
-# The legacy core CMakeLists adds Linux librt when OpenGL is disabled.
-# It is not an Ounce dependency. This archive has no executable link step.
-get_target_property(CORE_LINK_LIBRARIES core LINK_LIBRARIES)
-if(CORE_LINK_LIBRARIES)
-    list(REMOVE_ITEM CORE_LINK_LIBRARIES rt)
-    set_property(TARGET core PROPERTY LINK_LIBRARIES "${CORE_LINK_LIBRARIES}")
-endif()
+foreach(link_property IN ITEMS LINK_LIBRARIES INTERFACE_LINK_LIBRARIES)
+    get_target_property(core_libraries core ${link_property})
+    if(core_libraries)
+        list(REMOVE_ITEM core_libraries rt "$<LINK_ONLY:rt>")
+        set_property(
+            TARGET core
+            PROPERTY ${link_property} "${core_libraries}"
+        )
+    endif()
+endforeach()
 target_include_directories(core BEFORE PRIVATE "$ENV{DEVKITPRO}/libounce/include")
 
 message(STATUS "Experimental Ounce core archive only: no frontend, NRO, or hardware validation")
