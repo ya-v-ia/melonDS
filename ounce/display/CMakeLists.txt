@@ -3,7 +3,12 @@ project(melonDSOunceDisplay LANGUAGES C CXX)
 if(NOT CMAKE_CROSSCOMPILING OR NOT DEFINED ENV{DEVKITPRO})
     message(FATAL_ERROR "Source switch2vars.sh and use aarch64-none-elf-cmake")
 endif()
-find_library(OUNCE_RUNTIME NAMES ounce_core nx PATHS "$ENV{DEVKITPRO}/libounce/lib" NO_DEFAULT_PATH)
+find_library(
+    OUNCE_RUNTIME
+    NAMES ounce nx
+    PATHS "$ENV{DEVKITPRO}/libounce/lib"
+    NO_DEFAULT_PATH
+)
 find_library(OUNCE_EGL NAMES EGL PATHS "$ENV{DEVKITPRO}/portlibs/switch2/lib" "$ENV{DEVKITPRO}/libounce/lib" NO_DEFAULT_PATH)
 find_program(ELF2NRO elf2nro HINTS "$ENV{DEVKITPRO}/tools/bin")
 if(NOT OUNCE_RUNTIME OR NOT OUNCE_EGL OR NOT ELF2NRO)
